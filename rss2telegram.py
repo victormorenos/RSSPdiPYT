@@ -57,7 +57,7 @@ def check_topics(url):
     feed = feedparser.parse(url)
     source = feed['feed']['title']
     print(f'Checando {source}...')
-    for topic in reversed(feed['items'][:10]):
+    for topic in reversed(feed['items'][:3]):
         title = f'<b>{topic.title}</b>'
         link = topic.links[0].href
         photo = get_img(topic.links[0].href)
