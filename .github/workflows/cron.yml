@@ -12,13 +12,13 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v2
       - name: Download artifact
-        continue-on-error: true
+        # continue-on-error: true
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: cron.yml
           workflow_conclusion: success
       - name: Move database
-        continue-on-error: true
+        # continue-on-error: true
         run: mv rss2telegram/rss2telegram.db rss2telegram.db
       - name: Setup Python
         uses: actions/setup-python@v2
