@@ -13,7 +13,6 @@ import sqlite3
 URL = os.environ.get('URL')
 DESTINATION = os.environ.get('DESTINATION')
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
-EMOJIS = os.environ.get('EMOJIS', '🗞,📰,🗒,🗓,📋,🔗,📝,🗃')
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
