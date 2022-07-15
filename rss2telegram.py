@@ -3,7 +3,9 @@ from telebot import types
 from time import gmtime
 import feedparser
 import os
+import re
 import telebot
+import time
 import random
 import requests
 import sqlite3
@@ -32,43 +34,85 @@ def check_history(link):
     conn.close()
     return data
 
-def send_message(source, title, link, photo):
-    btn_link = types.InlineKeyboardMarkup()
-    btn = types.InlineKeyboardButton(f'{random.choice(EMOJIS.split(","))} {source}', url=link)
-    btn_link.row(btn)
-    print(f'Enviando {title}')
-    try:
-        response = requests.get(photo)
-        open('img.png', 'wb').write(response.content)
-        photo = open('img.png', 'rb')
+def send_message(topic, button):
+    MESSAGE_TEMPLATE = os.environ.get(f'MESSAGE_TEMPLATE', False)
+    if MESSAGE_TEMPLATE:
+        MESSAGE_TEMPLATE = set_env_vars(MESSAGE_TEMPLATE, topic)
+    else:
+        MESSAGE_TEMPLATE = f'<b>{topic["title"]}</b>'
+
+    btn_link = button
+    if button:
+        btn_link = types.InlineKeyboardMarkup()
+        btn = types.InlineKeyboardButton(f'{button}', url=topic['link'])
+        btn_link.row(btn)
+
+    if topic['photo']:
+        response = requests.get(topic['photo'], headers = {'User-agent': 'Mozilla/5.1'})
+        open('img', 'wb').write(response.content)
+        photo = open('img', 'rb')
         for dest in DESTINATION.split(','):
-            bot.send_photo(dest, photo, caption=title, parse_mode='HTML', reply_markup=btn_link)
-            #print(title)
-    except:
+            try:
+                bot.send_photo(dest, photo, caption=MESSAGE_TEMPLATE, parse_mode='HTML', reply_markup=btn_link)
+            except telebot.apihelper.ApiTelegramException:
+                topic['photo'] = False
+                send_message(topic, button)
+    else:
         for dest in DESTINATION.split(','):
-            bot.send_message(dest, title, parse_mode='HTML', reply_markup=btn_link, disable_web_page_preview=True)
+            bot.send_message(dest, MESSAGE_TEMPLATE, parse_mode='HTML', reply_markup=button, disable_web_page_preview=True)
+    print(f'... {topic["title"]}')
+    time.sleep(0.2)
 
 def get_img(url):
     response = requests.get(url, headers = {'User-agent': 'Mozilla/5.1'})
-    html = BeautifulSoup(response.content, 'html.parser')
-    return html.find('meta', {'property': 'og:image'})['content']
+    try:
+        html = BeautifulSoup(response.content, 'html.parser')
+        photo = html.find('meta', {'property': 'og:image'})['content']
+    except TypeError:
+        photo = False
+    return photo
+
+def set_env_vars(text, topic):
+    cases = {
+        'SITE_NAME': topic['site_name'],
+        'TITLE': topic['title'],
+        'SUMMARY': re.sub('<[^<]+?>', '', topic['summary']),
+        'LINK': topic['link'],
+        'EMOJI': random.choice(EMOJIS.split(","))
+    }
+    for word in re.split('{|}', text):
+        try:
+            text = text.replace(word, cases.get(word))
+        except TypeError:
+            continue
+    return text.replace('\\n', '\n').replace('{', '').replace('}', '')
+
 
 def check_topics(url):
     now = gmtime()
     feed = feedparser.parse(url)
-    source = feed['feed']['title']
-    print(f'Checando {source}...')
-    for topic in reversed(feed['items'][:3]):
-        title = f'<b>{topic.title}</b>'
-        link = topic.links[0].href
-        photo = get_img(topic.links[0].href)
-        if not check_history(link):
-            send_message(source, title, link, photo)
-            add_to_history(link)
-        else:
-            print(f'Repetido: {link}')
+    try:
+        source = feed['feed']['title']
+    except KeyError:
+        print(f'\nERRO: {url} não parece um feed RSS válido.')
+        return
+    print(f'\nChecando {source}:{url}')
+    for tpc in reversed(feed['items'][:10]):
+        topic = {}
+        topic['site_name'] = feed['feed']['title']
+        topic['title'] = tpc.title.strip()
+        topic['summary'] = tpc.summary
+        topic['link'] = tpc.links[0].href
+        topic['photo'] = get_img(tpc.links[0].href)
+        BUTTON_TEXT = os.environ.get('BUTTON_TEXT', False)
+        if BUTTON_TEXT:
+            BUTTON_TEXT = set_env_vars(BUTTON_TEXT, topic)
+        try:
+            send_message(topic, BUTTON_TEXT)
+        except telebot.apihelper.ApiTelegramException:
+            pass
+        add_to_history(topic['link'])
 
 if __name__ == "__main__":
     for url in URL.split(','):
         check_topics(url)
-
