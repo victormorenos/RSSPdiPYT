@@ -77,7 +77,6 @@ def set_env_vars(text, topic):
         'TITLE': topic['title'],
         'SUMMARY': re.sub('<[^<]+?>', '', topic['summary']),
         'LINK': topic['link'],
-        'EMOJI': random.choice(EMOJIS.split(","))
     }
     for word in re.split('{|}', text):
         try:
