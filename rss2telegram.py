@@ -1,4 +1,4 @@
-om bs4 import BeautifulSoup
+from bs4 import BeautifulSoup
 from telebot import types
 from time import gmtime
 import feedparser
