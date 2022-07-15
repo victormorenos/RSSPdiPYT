@@ -97,7 +97,7 @@ def check_topics(url):
         print(f'\nERRO: {url} não parece um feed RSS válido.')
         return
     print(f'\nChecando {source}:{url}')
-    for tpc in reversed(feed['items'][:10]):
+    for tpc in reversed(feed['items'][:3]):
         topic = {}
         topic['site_name'] = feed['feed']['title']
         topic['title'] = tpc.title.strip()
