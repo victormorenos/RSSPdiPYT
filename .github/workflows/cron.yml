@@ -12,6 +12,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v2
       - name: Download artifact
+        id: download
         continue-on-error: true
         uses: dawidd6/action-download-artifact@v2
         with:
@@ -35,6 +36,8 @@ jobs:
           EMOJIS: ${{ secrets.EMOJIS }}
           MESSAGE_TEMPLATE: ${{ secrets.MESSAGE_TEMPLATE }}
           BUTTON_TEXT: ${{ secrets.BUTTON_TEXT }}
+          PARAMETERS: ${{ secrets.PARAMETERS }}
+          DRYRUN: ${{ steps.download.outcome }}
       - name: Upload history
         uses: actions/upload-artifact@v3
         with:
