@@ -10,10 +10,18 @@ import random
 import requests
 import sqlite3
 
-URL = os.environ.get('URL')
-DESTINATION = os.environ.get('DESTINATION')
+def get_variable(variable):
+    if not os.environ.get(f'{variable}'):
+        var_file = open(f'{variable}.txt', 'r')
+        return var_file.read()
+    return os.environ.get(f'{variable}')
+
+URL = get_variable('URL')
+DESTINATION = get_variable('DESTINATION')
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 EMOJIS = os.environ.get('EMOJIS', '🗞,📰,🗒,🗓,📋,🔗,📝,🗃')
+PARAMETERS = os.environ.get('PARAMETERS', False)
+DRYRUN = os.environ.get('DRYRUN')
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -35,9 +43,11 @@ def check_history(link):
     return data
 
 def send_message(topic, button):
+    if DRYRUN == 'failure':
+        return
     MESSAGE_TEMPLATE = os.environ.get(f'MESSAGE_TEMPLATE', False)
     if MESSAGE_TEMPLATE:
-        MESSAGE_TEMPLATE = set_env_vars(MESSAGE_TEMPLATE, topic)
+        MESSAGE_TEMPLATE = set_text_vars(MESSAGE_TEMPLATE, topic)
     else:
         MESSAGE_TEMPLATE = f'<b>{topic["title"]}</b>'
 
@@ -50,8 +60,8 @@ def send_message(topic, button):
     if topic['photo']:
         response = requests.get(topic['photo'], headers = {'User-agent': 'Mozilla/5.1'})
         open('img', 'wb').write(response.content)
-        photo = open('img', 'rb')
         for dest in DESTINATION.split(','):
+            photo = open('img', 'rb')
             try:
                 bot.send_photo(dest, photo, caption=MESSAGE_TEMPLATE, parse_mode='HTML', reply_markup=btn_link)
             except telebot.apihelper.ApiTelegramException:
@@ -64,20 +74,31 @@ def send_message(topic, button):
     time.sleep(0.2)
 
 def get_img(url):
-    response = requests.get(url, headers = {'User-agent': 'Mozilla/5.1'})
     try:
+        response = requests.get(url, headers = {'User-agent': 'Mozilla/5.1'}, timeout=3)
         html = BeautifulSoup(response.content, 'html.parser')
         photo = html.find('meta', {'property': 'og:image'})['content']
     except TypeError:
         photo = False
+    except requests.exceptions.ReadTimeout:
+        photo = False
     return photo
 
-def set_env_vars(text, topic):
+def define_link(link, PARAMETERS):
+    if PARAMETERS:
+        if '?' in link:
+            return f'{link}&{PARAMETERS}'
+        return f'{link}?{PARAMETERS}'
+    return f'{link}'
+
+
+
+def set_text_vars(text, topic):
     cases = {
         'SITE_NAME': topic['site_name'],
         'TITLE': topic['title'],
         'SUMMARY': re.sub('<[^<]+?>', '', topic['summary']),
-        'LINK': topic['link'],
+        'LINK': define_link(topic['link'], PARAMETERS),
         'EMOJI': random.choice(EMOJIS.split(","))
     }
     for word in re.split('{|}', text):
@@ -108,13 +129,15 @@ def check_topics(url):
         topic['photo'] = get_img(tpc.links[0].href)
         BUTTON_TEXT = os.environ.get('BUTTON_TEXT', False)
         if BUTTON_TEXT:
-            BUTTON_TEXT = set_env_vars(BUTTON_TEXT, topic)
+            BUTTON_TEXT = set_text_vars(BUTTON_TEXT, topic)
         try:
             send_message(topic, BUTTON_TEXT)
-        except telebot.apihelper.ApiTelegramException:
+        except telebot.apihelper.ApiTelegramException as e:
+            print(e)
             pass
         add_to_history(topic['link'])
 
 if __name__ == "__main__":
     for url in URL.split(','):
         check_topics(url)
+
