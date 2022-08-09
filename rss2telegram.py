@@ -42,6 +42,25 @@ def check_history(link):
     conn.close()
     return data
 
+def firewall(text):
+    try:
+        rules = open(f'RULES.txt', 'r')
+    except FileNotFoundError:
+        return True
+    result = None
+    for rule in rules.readlines():
+        opt, arg = rule.split(':')
+        arg = arg.strip()
+        if arg == 'ALL' and opt == 'DROP':
+            result = False
+        elif arg == 'ALL' and opt == 'ACCEPT':
+            result = True
+        elif arg.lower() in text.lower() and opt == 'DROP':
+            result = False
+        elif arg.lower() in text.lower() and opt == 'ACCEPT':
+            result = True
+    return result
+
 def send_message(topic, button):
     if DRYRUN == 'failure':
         return
@@ -50,6 +69,10 @@ def send_message(topic, button):
         MESSAGE_TEMPLATE = set_text_vars(MESSAGE_TEMPLATE, topic)
     else:
         MESSAGE_TEMPLATE = f'<b>{topic["title"]}</b>'
+
+    if not firewall(str(topic)):
+        print(f'xxx {topic["title"]}')
+        return
 
     btn_link = button
     if button:
@@ -81,6 +104,8 @@ def get_img(url):
     except TypeError:
         photo = False
     except requests.exceptions.ReadTimeout:
+        photo = False
+    except requests.exceptions.TooManyRedirects:
         photo = False
     return photo
 
@@ -121,6 +146,7 @@ def check_topics(url):
     for tpc in reversed(feed['items'][:10]):
         if check_history(tpc.links[0].href):
             continue
+        add_to_history(tpc.links[0].href)
         topic = {}
         topic['site_name'] = feed['feed']['title']
         topic['title'] = tpc.title.strip()
@@ -135,9 +161,7 @@ def check_topics(url):
         except telebot.apihelper.ApiTelegramException as e:
             print(e)
             pass
-        add_to_history(topic['link'])
 
 if __name__ == "__main__":
     for url in URL.split(','):
         check_topics(url)
-
